@@ -55,6 +55,19 @@ def test_deposit_and_withdraw_by_id_update_balance(bank: Bank) -> None:
     assert bank.get_account("a1").get_balance() == 0
 
 
+def test_transfer_from_a1_to_a2(bank: Bank) -> None:
+    bank.transfer("a1", "a2", 100)
+    assert bank.get_account("a1").get_balance() == 900
+    assert bank.get_account("a2").get_balance() == 100
+
+
+def test_transfer_from_a1_to_unknown(bank: Bank) -> None:
+    with pytest.raises(AccountNotFoundError):
+        bank.transfer("a1", "b3", 100)
+    assert bank.get_account("a1").get_balance() == 1000
+    assert bank.get_account("a2").get_balance() == 0
+
+
 def test_actions_on_one_account_do_not_affect_others(bank: Bank) -> None:
     """Changing one account leaves every other account unchanged."""
     bank.deposit("a2", 300)

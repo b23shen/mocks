@@ -73,6 +73,17 @@ class Bank:
         except KeyError:
             raise AccountNotFoundError(f"account {account_id!r} not found") from None
 
+    def transfer(self, account_out: str, account_in: str, amount: int) -> None:
+        "transfer money amount from account_out to account_in"
+        # should check balance first and then perform action
+        self.withdraw(account_out, amount) # withdraw will be blocked if no account_out or amount is larger than balance
+        try: 
+            self.deposit(account_in, amount)
+        except:
+            # one more edge cases: withdraw succceed but deposit didn't, it needs the money back to account_out
+            self.deposit(account_out, amount)
+            raise AccountNotFoundError(f"account {account_out!r} not found")
+
     def deposit(self, account_id: str, amount: int) -> int:
         """Add money to an account.
 
