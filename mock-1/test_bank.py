@@ -9,6 +9,7 @@ from errors import (
     BankError,
     DuplicateAccountError,
     InsufficientFundsError,
+    InvalidAccountIdError,
     InvalidAmountError,
 )
 
@@ -98,3 +99,38 @@ def test_invalid_amount_or_overdraw_raises_and_keeps_balance(
     with pytest.raises(error):
         getattr(bank, action)("a1", amount)
     assert bank.get_account("a1").get_balance() == 1000
+
+
+@pytest.mark.parametrize(
+    ("account_id", "balance", "error"),
+    [
+        ("", 0, InvalidAccountIdError),
+        ("   ", 0, InvalidAccountIdError),
+        ("a3", -1, InvalidAmountError),
+        ("a3", 10.5, TypeError),
+    ],
+)
+def test_failed_open_does_not_add_account(
+    bank: Bank, account_id: str, balance: object, error: type[Exception]
+) -> None:
+    """A rejected open_account call leaves no account behind for that id."""
+    with pytest.raises(error):
+        bank.open_account(account_id, balance)  # type: ignore[arg-type]
+    with pytest.raises(AccountNotFoundError):
+        bank.get_account(account_id)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda b: b.get_account(123),
+        lambda b: b.deposit(None, 100),
+        lambda b: b.withdraw(1, 100),
+        lambda b: b.open_account(123),
+    ],
+    ids=["find", "deposit", "withdraw", "open"],
+)
+def test_non_string_id_raises_type_error(bank: Bank, call) -> None:
+    """Every Bank method rejects an account id that is not a str."""
+    with pytest.raises(TypeError):
+        call(bank)
