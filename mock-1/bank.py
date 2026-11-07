@@ -47,9 +47,8 @@ class Bank:
             InvalidAmountError: If balance is negative.
             DuplicateAccountError: If account_id is already used.
         """
-        # Check for a duplicate first, so a bad request never builds an Account.
-        if isinstance(account_id, str) and account_id in self._accounts:
-            raise DuplicateAccountError(f"account {account_id!r} already exists")
+        # Account checks the id and balance first; _add then checks for a
+        # duplicate id. A rejected Account is never stored.
         account = Account(account_id, balance)
         self._add(account)
         return account
