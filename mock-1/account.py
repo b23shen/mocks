@@ -5,13 +5,7 @@ All money values are whole cents stored as int (for example, 1234 means
 are no floating point rounding errors.
 """
 
-
-class InvalidAmountError(ValueError):
-    """Raised when an amount of cents is not a valid value."""
-
-
-class InsufficientFundsError(ValueError):
-    """Raised when a withdrawal is larger than the current balance."""
+from errors import InsufficientFundsError, InvalidAccountIdError, InvalidAmountError
 
 
 def _validate_cents(value: int, name: str) -> int:
@@ -71,13 +65,13 @@ class Account:
         Raises:
             TypeError: If account_id is not a str, or balance is not an int
                 (or is a bool).
-            ValueError: If account_id is empty or only whitespace.
+            InvalidAccountIdError: If account_id is empty or only whitespace.
             InvalidAmountError: If balance is negative.
         """
         if not isinstance(account_id, str):
             raise TypeError(f"account_id must be a str, got {type(account_id).__name__}")
         if not account_id.strip():
-            raise ValueError("account_id must not be empty")
+            raise InvalidAccountIdError("account_id must not be empty")
         start = _validate_cents(balance, "balance")
         if start < 0:
             raise InvalidAmountError(f"balance must be >= 0, got {balance}")

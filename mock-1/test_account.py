@@ -2,7 +2,8 @@
 
 import pytest
 
-from account import Account, InsufficientFundsError, InvalidAmountError
+from account import Account
+from errors import InsufficientFundsError, InvalidAccountIdError, InvalidAmountError
 
 
 def test_new_account_starts_with_zero_balance() -> None:
@@ -63,8 +64,8 @@ def test_invalid_type_amount_raises_type_error(action: str, amount: object) -> N
 @pytest.mark.parametrize(
     ("account_id", "balance", "error"),
     [
-        ("", 0, ValueError),
-        ("   ", 0, ValueError),
+        ("", 0, InvalidAccountIdError),
+        ("   ", 0, InvalidAccountIdError),
         (123, 0, TypeError),
         ("acc-1", -1, InvalidAmountError),
         ("acc-1", 10.0, TypeError),
