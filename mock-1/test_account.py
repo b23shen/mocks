@@ -1,6 +1,4 @@
-"""Tests for the Account class in account.py."""
-
-import math
+"""Tests for the Account class in account.py. All money values are int cents."""
 
 import pytest
 
@@ -8,73 +6,73 @@ from account import Account, InsufficientFundsError, InvalidAmountError
 
 
 def test_new_account_starts_with_zero_balance() -> None:
-    """A new account with no starting balance has 0.0."""
+    """A new account with no starting balance has 0 cents."""
     account = Account("acc-1")
-    assert account.get_balance() == 0.0
+    assert account.get_balance() == 0
 
 
 def test_deposit_increases_balance() -> None:
-    """Deposits add to the balance, including cents."""
+    """Deposits add cents to the balance."""
     account = Account("acc-1")
-    assert account.deposit(10.25) == 10.25
-    assert account.deposit(5) == 15.25
-    assert account.get_balance() == 15.25
+    assert account.deposit(1025) == 1025
+    assert account.deposit(500) == 1525
+    assert account.get_balance() == 1525
 
 
 def test_withdraw_decreases_balance() -> None:
-    """A withdrawal subtracts from the balance."""
-    account = Account("acc-1", 20.50)
-    assert account.withdraw(5.25) == 15.25
-    assert account.get_balance() == 15.25
+    """A withdrawal subtracts cents from the balance."""
+    account = Account("acc-1", 2050)
+    assert account.withdraw(525) == 1525
+    assert account.get_balance() == 1525
 
 
 def test_withdraw_full_balance_leaves_zero() -> None:
     """Withdrawing the exact balance is allowed and leaves 0."""
-    account = Account("acc-1", 12.34)
-    assert account.withdraw(12.34) == 0.0
+    account = Account("acc-1", 1234)
+    assert account.withdraw(1234) == 0
 
 
 def test_withdraw_more_than_balance_raises_and_keeps_balance() -> None:
-    """Overdrawing raises InsufficientFundsError and leaves the balance unchanged."""
-    account = Account("acc-1", 10.00)
+    """Overdrawing by even 1 cent raises and leaves the balance unchanged."""
+    account = Account("acc-1", 1000)
     with pytest.raises(InsufficientFundsError):
-        account.withdraw(10.01)
-    assert account.get_balance() == 10.00
+        account.withdraw(1001)
+    assert account.get_balance() == 1000
 
 
-@pytest.mark.parametrize("amount", [0, 0.0, -5, -0.01])
+@pytest.mark.parametrize("amount", [0, -5])
 @pytest.mark.parametrize("action", ["deposit", "withdraw"])
-def test_zero_or_negative_amount_raises(action: str, amount: float) -> None:
+def test_zero_or_negative_amount_raises(action: str, amount: int) -> None:
     """Amounts that are not > 0 are rejected and the balance does not change."""
-    account = Account("acc-1", 10.00)
+    account = Account("acc-1", 1000)
     with pytest.raises(InvalidAmountError):
         getattr(account, action)(amount)
-    assert account.get_balance() == 10.00
+    assert account.get_balance() == 1000
 
 
-@pytest.mark.parametrize("amount", ["10", True, None])
+@pytest.mark.parametrize("amount", ["1000", True, None, 10.5, 10.0])
 @pytest.mark.parametrize("action", ["deposit", "withdraw"])
 def test_invalid_type_amount_raises_type_error(action: str, amount: object) -> None:
-    """Non-number amounts (and bool) raise TypeError."""
-    account = Account("acc-1", 10.00)
+    """Non-int amounts raise TypeError, including bool and whole-number floats."""
+    account = Account("acc-1", 1000)
     with pytest.raises(TypeError):
         getattr(account, action)(amount)
-    assert account.get_balance() == 10.00
+    assert account.get_balance() == 1000
 
 
-@pytest.mark.parametrize("amount", [1.005, math.nan, math.inf])
-def test_bad_float_amount_raises(amount: float) -> None:
-    """Floats with too many decimals, NaN, or infinity are rejected.
-
-    Also checks that repeated 0.1 withdrawals end at exactly 0, so float
-    rounding errors do not block a valid withdrawal.
-    """
-    account = Account("acc-1", 0.3)
-    with pytest.raises(InvalidAmountError):
-        account.deposit(amount)
-    with pytest.raises(InvalidAmountError):
-        account.withdraw(amount)
-
-    for _ in range(3):
-        account.withdraw(0.1)
-    assert account.get_balance() == 0.0
+@pytest.mark.parametrize(
+    ("account_id", "balance", "error"),
+    [
+        ("", 0, ValueError),
+        ("   ", 0, ValueError),
+        (123, 0, TypeError),
+        ("acc-1", -1, InvalidAmountError),
+        ("acc-1", 10.0, TypeError),
+    ],
+)
+def test_invalid_account_setup_raises(
+    account_id: object, balance: object, error: type[Exception]
+) -> None:
+    """Bad ids and bad starting balances are rejected when creating an account."""
+    with pytest.raises(error):
+        Account(account_id, balance)  # type: ignore[arg-type]
