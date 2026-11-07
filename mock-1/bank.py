@@ -74,15 +74,31 @@ class Bank:
             raise AccountNotFoundError(f"account {account_id!r} not found") from None
 
     def transfer(self, account_out: str, account_in: str, amount: int) -> None:
-        "transfer money amount from account_out to account_in"
-        # should check balance first and then perform action
-        self.withdraw(account_out, amount) # withdraw will be blocked if no account_out or amount is larger than balance
-        try: 
-            self.deposit(account_in, amount)
-        except:
-            # one more edge cases: withdraw succceed but deposit didn't, it needs the money back to account_out
-            self.deposit(account_out, amount)
-            raise AccountNotFoundError(f"account {account_out!r} not found")
+        """Move money from one account to another.
+
+        Either both accounts change or neither does.
+
+        Args:
+            account_out: The exact id of the account to take money from.
+            account_in: The exact id of the account to add money to.
+            amount: The cents to move. Must be > 0.
+
+        Raises:
+            TypeError: If an account id is not a str, or amount is not an int.
+            AccountNotFoundError: If either account id is unknown.
+            InvalidAmountError: If amount is not > 0.
+            InsufficientFundsError: If amount is larger than the balance of
+                account_out.
+        """
+        # Find both accounts before moving any money, so a bad id fails
+        # while nothing has changed yet.
+        source = self.get_account(account_out)
+        target = self.get_account(account_in)
+        # withdraw checks the amount and balance; if it fails, nothing changed.
+        source.withdraw(amount)
+        # The amount is already checked, so this deposit cannot fail and
+        # no rollback is needed.
+        target.deposit(amount)
 
     def deposit(self, account_id: str, amount: int) -> int:
         """Add money to an account.
