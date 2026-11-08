@@ -23,6 +23,10 @@ class DuplicateAccountError(BankError, ValueError):
     """Raised when an account id is already used in the bank."""
 
 
+class SameAccountTransferError(BankError, ValueError):
+    """Raised when a transfer uses the same account as source and target."""
+
+
 class AccountNotFoundError(BankError, LookupError):
     """Raised when no account has the given id."""
 

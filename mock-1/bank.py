@@ -7,7 +7,8 @@ are done by Account, so the bank does not repeat them.
 from collections.abc import Iterable
 
 from account import Account
-from errors import AccountNotFoundError, DuplicateAccountError
+from errors import AccountNotFoundError, DuplicateAccountError, SameAccountTransferError
+from transaction import Transaction
 
 
 class Bank:
@@ -76,7 +77,8 @@ class Bank:
     def transfer(self, account_out: str, account_in: str, amount: int) -> None:
         """Move money from one account to another.
 
-        Either both accounts change or neither does.
+        Either both accounts change or neither does. On success, account_out
+        records a TRANSFER_OUT and account_in records a TRANSFER_IN.
 
         Args:
             account_out: The exact id of the account to take money from.
@@ -86,6 +88,8 @@ class Bank:
         Raises:
             TypeError: If an account id is not a str, or amount is not an int.
             AccountNotFoundError: If either account id is unknown.
+            SameAccountTransferError: If account_out and account_in are the
+                same id.
             InvalidAmountError: If amount is not > 0.
             InsufficientFundsError: If amount is larger than the balance of
                 account_out.
@@ -94,11 +98,31 @@ class Bank:
         # while nothing has changed yet.
         source = self.get_account(account_out)
         target = self.get_account(account_in)
-        # withdraw checks the amount and balance; if it fails, nothing changed.
-        source.withdraw(amount)
-        # The amount is already checked, so this deposit cannot fail and
-        # no rollback is needed.
-        target.deposit(amount)
+        # A self-transfer would add two records that cancel out, which only
+        # makes the history confusing.
+        if source is target:
+            raise SameAccountTransferError(f"cannot transfer from {account_out!r} to itself")
+        # transfer_out checks the amount and balance; if it fails, nothing changed.
+        source.transfer_out(amount, account_in)
+        # The amount is already checked, so this cannot fail and no rollback
+        # is needed.
+        target.transfer_in(amount, account_out)
+
+    def get_history(self, account_id: str) -> tuple[Transaction, ...]:
+        """Return the transaction history of an account, oldest first.
+
+        Args:
+            account_id: The exact id of the account.
+
+        Returns:
+            A tuple of the account's transactions. It is a copy, so callers
+            cannot change the real history.
+
+        Raises:
+            TypeError: If account_id is not a str.
+            AccountNotFoundError: If no account has that id.
+        """
+        return self.get_account(account_id).get_history()
 
     def deposit(self, account_id: str, amount: int) -> int:
         """Add money to an account.
