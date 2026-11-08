@@ -32,6 +32,17 @@ def test_duplicate_ids_in_starting_accounts_raise() -> None:
         Bank([Account("x", 100), Account("x", 200)])
 
 
+@pytest.mark.parametrize("item", ["a1", None, 123])
+def test_non_account_in_starting_accounts_raises_type_error(item: object) -> None:
+    """Starting items that are not Account objects are rejected.
+
+    Account checks its own arguments, but Bank gets objects that are
+    already built, so Bank must check that each item is an Account.
+    """
+    with pytest.raises(TypeError):
+        Bank([Account("ok", 100), item])  # type: ignore[list-item]
+
+
 def test_open_account_then_find_it(bank: Bank) -> None:
     """A newly opened account is returned and can be found by its id."""
     account = bank.open_account("a3", 500)
