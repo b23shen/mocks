@@ -78,4 +78,4 @@ class SearchSuggester:
         if not needle:
             return []
         matched = [(query, count) for query, count in self._counts.items() if query.startswith(needle)]
-        return [pair[0] for pair in sorted(matched, key=lambda pair: pair[1], reverse=True)]
+        return [pair[0] for pair in sorted(matched, key=lambda pair: (-pair[1], pair[0]))][:3]
