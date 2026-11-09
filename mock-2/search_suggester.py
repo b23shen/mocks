@@ -41,6 +41,19 @@ class SearchSuggester:
         key = query.lower()
         self._counts[key] = self._counts.get(key, 0) + count
 
+    def record_search(self, query: str) -> None:
+        """Record that a user searched for query once.
+
+        A new query is added with count 1 so it can be suggested from now on.
+
+        Args:
+            query: The search text. Case is ignored.
+
+        Raises:
+            ValueError: If query is empty.
+        """
+        self._add(query, 1)
+
     def suggest(self, prefix: str) -> list[str]:
         """Return stored queries that start with prefix, ignoring case.
 

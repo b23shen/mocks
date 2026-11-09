@@ -51,3 +51,32 @@ def test_init_raises_on_empty_query() -> None:
 def test_init_raises_on_negative_count() -> None:
     with pytest.raises(ValueError, match="negative"):
         SearchSuggester([("red shoes", -1)])
+
+
+def test_record_search_new_query_becomes_suggestable() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    assert suggester.suggest("green") == []
+    suggester.record_search("green hat")
+    assert suggester.suggest("green") == ["green hat"]
+    assert suggester._counts["green hat"] == 1
+
+
+def test_record_search_existing_query_increments_count() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    suggester.record_search("red shoes")
+    suggester.record_search("red shoes")
+    assert suggester._counts["red shoes"] == 52
+
+
+def test_record_search_is_case_insensitive() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    suggester.record_search("RED Shoes")
+    assert suggester._counts["red shoes"] == 51
+    # No separate entry is created for the uppercase spelling.
+    assert set(suggester.suggest("red")) == {"red shoes", "red dress"}
+
+
+def test_record_search_raises_on_empty_query() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    with pytest.raises(ValueError, match="empty"):
+        suggester.record_search("")
