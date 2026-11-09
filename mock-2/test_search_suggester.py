@@ -43,9 +43,9 @@ def test_duplicate_queries_merge_counts_across_case() -> None:
     assert suggester._counts == {"red shoes": 16}
 
 
-def test_init_raises_on_empty_query() -> None:
-    with pytest.raises(ValueError, match="empty"):
-        SearchSuggester([("red shoes", 1), ("", 3)])
+def test_init_ignores_empty_and_whitespace_only_queries() -> None:
+    suggester = SearchSuggester([("red shoes", 1), ("", 3), ("   ", 4), ("\t\n", 2)])
+    assert suggester._counts == {"red shoes": 1}
 
 
 def test_init_raises_on_negative_count() -> None:
@@ -76,7 +76,35 @@ def test_record_search_is_case_insensitive() -> None:
     assert set(suggester.suggest("red")) == {"red shoes", "red dress"}
 
 
-def test_record_search_raises_on_empty_query() -> None:
+def test_record_search_ignores_empty_and_whitespace_only_query() -> None:
     suggester = SearchSuggester(SEARCHES)
-    with pytest.raises(ValueError, match="empty"):
-        suggester.record_search("")
+    before = dict(suggester._counts)
+    # A blank search is valid: no error, and counts do not change.
+    suggester.record_search("")
+    suggester.record_search("   ")
+    assert suggester._counts == before
+
+
+def test_queries_are_trimmed_and_merged() -> None:
+    suggester = SearchSuggester([("red shoes", 10), ("  Red Shoes ", 5)])
+    suggester.record_search(" red shoes  ")
+    assert suggester._counts == {"red shoes": 16}
+    assert suggester.suggest("red") == ["red shoes"]
+
+
+def test_suggest_ignores_leading_spaces_in_prefix() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    assert set(suggester.suggest(" red")) == {"red shoes", "red dress"}
+    assert suggester.suggest("   BLUE") == ["blue jeans"]
+
+
+def test_suggest_keeps_trailing_space_in_prefix() -> None:
+    suggester = SearchSuggester([("red shoes", 5), ("reddit", 3)])
+    assert suggester.suggest("red ") == ["red shoes"]
+    assert set(suggester.suggest("red")) == {"red shoes", "reddit"}
+
+
+def test_suggest_returns_empty_list_for_whitespace_only_prefix() -> None:
+    suggester = SearchSuggester(SEARCHES)
+    assert suggester.suggest(" ") == []
+    assert suggester.suggest("   ") == []
