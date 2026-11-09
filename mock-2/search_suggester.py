@@ -77,4 +77,5 @@ class SearchSuggester:
         # We start suggesting from the first letter, so "" gives nothing.
         if not needle:
             return []
-        return [query for query in self._counts if query.startswith(needle)]
+        matched = [(query, count) for query, count in self._counts.items() if query.startswith(needle)]
+        return [pair[0] for pair in sorted(matched, key=lambda pair: pair[1], reverse=True)]

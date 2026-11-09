@@ -108,3 +108,10 @@ def test_suggest_returns_empty_list_for_whitespace_only_prefix() -> None:
     suggester = SearchSuggester(SEARCHES)
     assert suggester.suggest(" ") == []
     assert suggester.suggest("   ") == []
+
+
+def test_return_3_items() -> None:
+    suggester = SearchSuggester(
+        [("red shoes", 10), ("Red Pants", 5), ("red dress", 1)]
+    )
+    assert suggester.suggest("red") == ["red shoes", "red pants", "red dress"]
