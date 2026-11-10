@@ -18,12 +18,20 @@ class InvalidSeatError(BookingError, ValueError):
     """Raised when a row or seat number is outside the theatre."""
 
 
+class InvalidBlockSizeError(BookingError, ValueError):
+    """Raised when the number of seats in a block is less than 1."""
+
+
 class InvalidCustomerIdError(BookingError, ValueError):
     """Raised when a customer id is empty or only whitespace."""
 
 
 class SeatTakenError(BookingError):
     """Raised when someone tries to book a seat that is already booked."""
+
+
+class NoFreeBlockError(BookingError):
+    """Raised when no row has enough free seats next to each other."""
 
 
 class SeatNotBookedError(BookingError):

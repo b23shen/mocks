@@ -4,9 +4,11 @@ import pytest
 
 from errors import (
     BookingError,
+    InvalidBlockSizeError,
     InvalidCustomerIdError,
     InvalidSeatError,
     InvalidTheatreSizeError,
+    NoFreeBlockError,
     NotSeatOwnerError,
     SeatNotBookedError,
     SeatTakenError,
@@ -124,3 +126,112 @@ def test_cancel_free_seat_or_by_other_customer_raises(theatre: Theatre) -> None:
     assert (0, 0) not in theatre.available_seats()
     # All booking errors share one base class.
     assert issubclass(NotSeatOwnerError, BookingError)
+
+
+# --- Block booking -----------------------------------------------------------
+
+
+@pytest.fixture
+def wide_theatre() -> Theatre:
+    """Return an empty theatre with 2 rows of 5 seats."""
+    return Theatre(2, 5)
+
+
+def test_book_block_books_all_seats_in_range(wide_theatre: Theatre) -> None:
+    """A block books exactly its seats, all for the same customer."""
+    wide_theatre.book_block(0, 1, 3, "alice")
+    assert wide_theatre.available_seats() == [
+        (0, 0), (0, 4),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+    ]
+    # Each seat belongs to alice, so she can cancel them one by one.
+    for seat in (1, 2, 3):
+        wide_theatre.cancel(0, seat, "alice")
+
+
+def test_book_block_with_one_taken_seat_books_nothing(wide_theatre: Theatre) -> None:
+    """If one seat in the block is taken, no seat of the block is booked."""
+    wide_theatre.book(0, 3, "bob")
+    with pytest.raises(SeatTakenError):
+        wide_theatre.book_block(0, 1, 3, "alice")
+    # Only bob's seat is gone; seats 1 and 2 were not booked for alice.
+    assert len(wide_theatre.available_seats()) == 9
+    assert (0, 1) in wide_theatre.available_seats()
+    assert (0, 2) in wide_theatre.available_seats()
+
+
+def test_book_block_past_end_of_row_raises(wide_theatre: Theatre) -> None:
+    """A block that would go past the last seat is rejected, not wrapped."""
+    with pytest.raises(InvalidSeatError):
+        wide_theatre.book_block(0, 3, 3, "alice")
+    assert len(wide_theatre.available_seats()) == 10
+    # A block that ends exactly on the last seat is fine.
+    wide_theatre.book_block(0, 3, 2, "alice")
+    assert len(wide_theatre.available_seats()) == 8
+
+
+@pytest.mark.parametrize(
+    ("count", "error"),
+    [
+        (0, InvalidBlockSizeError),
+        (-2, InvalidBlockSizeError),
+        (True, TypeError),
+        (2.0, TypeError),
+    ],
+)
+def test_invalid_block_count_raises(
+    wide_theatre: Theatre, count: object, error: type[Exception]
+) -> None:
+    """Counts that are not ints >= 1 are rejected by all block methods."""
+    with pytest.raises(error):
+        wide_theatre.book_block(0, 0, count, "alice")  # type: ignore[arg-type]
+    with pytest.raises(error):
+        wide_theatre.find_free_block(count)  # type: ignore[arg-type]
+    with pytest.raises(error):
+        wide_theatre.book_any_block(count, "alice")  # type: ignore[arg-type]
+    assert len(wide_theatre.available_seats()) == 10
+
+
+def test_find_free_block_returns_first_fit(wide_theatre: Theatre) -> None:
+    """The search picks the lowest row, then the lowest first seat."""
+    assert wide_theatre.find_free_block(3) == (0, 0)
+    wide_theatre.book(0, 0, "bob")
+    assert wide_theatre.find_free_block(3) == (0, 1)
+    # Finding a block does not book it.
+    assert len(wide_theatre.available_seats()) == 9
+
+
+def test_find_free_block_skips_gaps_too_small(wide_theatre: Theatre) -> None:
+    """Gaps shorter than count are skipped; blocks never cross rows."""
+    # Row 0 free seats: 0, 1, 3 -> no 3 free seats together.
+    wide_theatre.book(0, 2, "bob")
+    wide_theatre.book(0, 4, "bob")
+    # Row 1 free seats: 0, 1 -> joined with row 0's end, it would look
+    # like a block of 3 if the search crossed rows.
+    for seat in (2, 3, 4):
+        wide_theatre.book(1, seat, "bob")
+    assert wide_theatre.find_free_block(3) is None
+    assert wide_theatre.find_free_block(2) == (0, 0)
+
+
+def test_find_free_block_returns_none_when_no_block_fits(wide_theatre: Theatre) -> None:
+    """A count bigger than a row, or a full theatre, gives None."""
+    assert wide_theatre.find_free_block(6) is None
+    for row in range(2):
+        wide_theatre.book_block(row, 0, 5, "bob")
+    assert wide_theatre.find_free_block(1) is None
+
+
+def test_book_any_block_books_and_returns_position(wide_theatre: Theatre) -> None:
+    """It books the first free block and says where; with no block, nothing changes."""
+    wide_theatre.book(0, 1, "bob")
+    assert wide_theatre.book_any_block(3, "alice") == (0, 2)
+    assert wide_theatre.available_seats() == [
+        (0, 0),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+    ]
+    # Row 1 is the only place for 5 seats, then nothing is left for 2.
+    assert wide_theatre.book_any_block(5, "carol") == (1, 0)
+    with pytest.raises(NoFreeBlockError):
+        wide_theatre.book_any_block(2, "dave")
+    assert wide_theatre.available_seats() == [(0, 0)]
