@@ -1,21 +1,30 @@
 """Assign a random gift receiver to every participant.
 
 Each person gives exactly one gift and receives exactly one gift, and nobody
-gives a gift to themselves. The assignment works like this: shuffle the
-participants, then each person gives to the next person in the shuffled list,
-and the last person gives to the first. This always makes one big circle.
+gives a gift to themselves. The result is always one big circle: each person
+gives to the next person, and the last person gives to the first.
+
+Callers can also pass excluded (giver_email, receiver_email) pairs. The
+circle is built one person at a time in random order, and the search goes
+back a step when it gets stuck. So if any valid circle exists, it is found.
 """
 
 import csv
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from errors import (
     DuplicateEmailError,
     EmptyFieldError,
     InvalidCsvError,
+    NoValidAssignmentError,
     NotEnoughParticipantsError,
+    UnknownParticipantError,
 )
+
+# A (giver_email, receiver_email) pair, with both emails normalized.
+Pair = tuple[str, str]
 
 REQUIRED_COLUMNS = ("name", "email")
 
@@ -80,32 +89,112 @@ def validate(participants: list[Participant]) -> None:
 
 
 def assign(
-    participants: list[Participant], rng: random.Random | None = None
+    participants: list[Participant],
+    rng: random.Random | None = None,
+    exclusions: Iterable[tuple[str, str]] | None = None,
 ) -> dict[Participant, Participant]:
-    """Give every participant one random receiver.
+    """Give every participant one random receiver, following the exclusions.
+
+    The search can be slow for large groups with many exclusions, because
+    in the worst case it tries many circles. It is fast for groups of tens
+    of people. It uses recursion, so groups must be smaller than Python's
+    recursion limit (about 1000 by default).
 
     Args:
         participants: The people taking part. The list is not changed.
         rng: The random generator to use. Pass a seeded random.Random in
             tests to get the same result every time. If None, a new
             unseeded generator is used.
+        exclusions: (giver_email, receiver_email) pairs. The giver must not
+            give to the receiver. A pair blocks one direction only. Emails
+            are matched ignoring case and outer spaces. None means no
+            exclusions.
 
     Returns:
         A dict that maps each giver to their receiver. Every participant is
-        a key once and a value once, and no key maps to itself.
+        a key once and a value once, no key maps to itself, and no
+        (giver, receiver) is an excluded pair. All links form one circle.
 
     Raises:
         EmptyFieldError: If any name or email is empty.
         DuplicateEmailError: If two participants share an email.
         NotEnoughParticipantsError: If there are fewer than 2 participants.
+        UnknownParticipantError: If an excluded pair uses an unknown email.
+        NoValidAssignmentError: If no circle can follow all exclusions.
     """
     validate(participants)
-    rng = rng or random.Random()
-    # Shuffle a copy so the caller's list keeps its order.
-    order = list(participants)
-    rng.shuffle(order)
+    blocked = _normalize_pairs(exclusions or [])
+    _check_known_emails(participants, blocked)
+    circle = _find_circle(participants, blocked, rng or random.Random())
+    if circle is None:
+        raise NoValidAssignmentError("No gift circle can follow all exclusions.")
     # i gives to i+1; the modulo makes the last person give to the first.
-    return {order[i]: order[(i + 1) % len(order)] for i in range(len(order))}
+    return {circle[i]: circle[(i + 1) % len(circle)] for i in range(len(circle))}
+
+
+def _email_key(email: str) -> str:
+    """Return the email in the form used to compare emails."""
+    return email.strip().lower()
+
+
+def _normalize_pairs(pairs: Iterable[tuple[str, str]]) -> set[Pair]:
+    """Return the pairs with both emails turned into compare keys."""
+    return {(_email_key(giver), _email_key(receiver)) for giver, receiver in pairs}
+
+
+def _check_known_emails(participants: list[Participant], blocked: set[Pair]) -> None:
+    """Raise UnknownParticipantError if a pair uses an email nobody has."""
+    known = {_email_key(person.email) for person in participants}
+    for giver, receiver in blocked:
+        for email in (giver, receiver):
+            if email not in known:
+                raise UnknownParticipantError(f"Unknown email in exclusions: {email}.")
+
+
+def _can_give(giver: Participant, receiver: Participant, blocked: set[Pair]) -> bool:
+    """Return True if giver may give a gift to receiver."""
+    if giver == receiver:
+        return False
+    return (_email_key(giver.email), _email_key(receiver.email)) not in blocked
+
+
+def _find_circle(
+    participants: list[Participant], blocked: set[Pair], rng: random.Random
+) -> list[Participant] | None:
+    """Return the people in circle order, or None if no valid circle exists."""
+    # In a circle every person is on it, so the start person does not
+    # change which circles are possible. The random order comes from
+    # shuffling the choices at each step.
+    path = [participants[0]]
+    remaining = list(participants[1:])  # A copy, so the caller's list is safe.
+    return path if _extend_circle(path, remaining, blocked, rng) else None
+
+
+def _extend_circle(
+    path: list[Participant],
+    remaining: list[Participant],
+    blocked: set[Pair],
+    rng: random.Random,
+) -> bool:
+    """Try to add all remaining people to path; return True on success.
+
+    Changes path and remaining in place. On success, path holds everyone
+    in circle order. On failure, both lists hold the same people as before.
+    """
+    if not remaining:
+        # The circle must also close: the last person gives to the first.
+        return _can_give(path[-1], path[0], blocked)
+    choices = [person for person in remaining if _can_give(path[-1], person, blocked)]
+    rng.shuffle(choices)
+    for person in choices:
+        path.append(person)
+        remaining.remove(person)
+        if _extend_circle(path, remaining, blocked, rng):
+            return True
+        # Dead end: undo this choice and try the next one.
+        path.pop()
+        remaining.append(person)
+    return False
 
 
 def _check_header(fieldnames: list[str] | None) -> None:
@@ -138,7 +227,7 @@ def _check_unique_emails(participants: list[Participant]) -> None:
     seen: set[str] = set()
     for person in participants:
         # Emails are case-insensitive in practice, so compare in lower case.
-        key = person.email.strip().lower()
+        key = _email_key(person.email)
         if key in seen:
             raise DuplicateEmailError(f"Duplicate email: {person.email}.")
         seen.add(key)

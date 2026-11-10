@@ -24,3 +24,11 @@ class DuplicateEmailError(GiftExchangeError, ValueError):
 
 class NotEnoughParticipantsError(GiftExchangeError, ValueError):
     """Raised when there are fewer than 2 participants."""
+
+
+class UnknownParticipantError(GiftExchangeError, ValueError):
+    """Raised when an excluded pair uses an email that no participant has."""
+
+
+class NoValidAssignmentError(GiftExchangeError):
+    """Raised when the exclusions make every possible gift circle invalid."""
