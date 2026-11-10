@@ -149,6 +149,20 @@ def test_book_block_books_all_seats_in_range(wide_theatre: Theatre) -> None:
         wide_theatre.cancel(0, seat, "alice")
 
 
+def test_cancel_block_cancels_all_seats_in_range(wide_theatre: Theatre) -> None:
+    """A block books exactly its seats, all for the same customer."""
+    wide_theatre.book_block(0, 1, 3, "alice")
+    assert wide_theatre.available_seats() == [
+        (0, 0), (0, 4),
+        (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+    ]
+    wide_theatre.cancel_block(0, 1, 2, "alice")
+    assert wide_theatre.available_seats() == [
+            (0, 0), (0, 1), (0, 2), (0, 4),
+            (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+        ]
+
+
 def test_book_block_with_one_taken_seat_books_nothing(wide_theatre: Theatre) -> None:
     """If one seat in the block is taken, no seat of the block is booked."""
     wide_theatre.book(0, 3, "bob")

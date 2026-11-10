@@ -111,6 +111,29 @@ class Theatre:
         for seat in range(first_seat, end):
             self._seats[row][seat] = customer_id
 
+    def cancel_block(self, row: int, first_seat: int, count: int, customer_id: str) -> None:
+            self._check_seat(row, first_seat)
+            _check_count(count)
+            _check_customer_id(customer_id)
+            end = first_seat + count
+            # A block never continues into the next row.
+            if end > self._seats_per_row:
+                raise InvalidSeatError(
+                    f"block of {count} from seat {first_seat} goes past the end of row {row}"
+                )
+            # Check every seat before writing any, so a failed booking changes
+            # nothing. Never overwriting a booking stops two people from getting
+            # the same seat.
+            for seat in range(first_seat, end):
+                if self._seats[row][seat] is None:
+                    raise  SeatNotBookedError(f"seat ({row}, {seat}) is not booked")
+                if self._seats[row][seat] != customer_id:
+                    raise NotSeatOwnerError(
+                        f"seat ({row}, {seat}) was booked by another customer"
+                    )
+            for seat in range(first_seat, end):
+                self._seats[row][seat] = None
+
     def find_free_block(self, count: int) -> tuple[int, int] | None:
         """Find the first block of count free seats next to each other.
 
@@ -177,16 +200,7 @@ class Theatre:
             SeatNotBookedError: If the seat is free.
             NotSeatOwnerError: If the seat was booked by another customer.
         """
-        self._check_seat(row, seat)
-        _check_customer_id(customer_id)
-        owner = self._seats[row][seat]
-        if owner is None:
-            raise SeatNotBookedError(f"seat ({row}, {seat}) is not booked")
-        if owner != customer_id:
-            raise NotSeatOwnerError(
-                f"seat ({row}, {seat}) was booked by another customer"
-            )
-        self._seats[row][seat] = None
+        self.cancel_block(row, seat, 1, customer_id)
 
     def _check_seat(self, row: int, seat: int) -> None:
         """Check that (row, seat) is a real seat in this theatre.
